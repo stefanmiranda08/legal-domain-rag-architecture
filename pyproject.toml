@@ -12,6 +12,7 @@ dependencies = [
     "psycopg2-binary>=2.9.9",
     "qdrant-client>=1.7.0",
     "langchain>=0.1.0",
+    "langchain-text-splitters>=0.0.1",
     "langchain-openai>=0.0.5",
     "openai>=1.10.0",
     "datasets>=2.16.0",
