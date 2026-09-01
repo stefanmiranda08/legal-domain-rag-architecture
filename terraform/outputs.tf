@@ -69,3 +69,13 @@ output "efs_file_system_id" {
   description = "EFS file system ID"
   value       = aws_efs_file_system.qdrant.id
 }
+
+output "snapshots_bucket" {
+  description = "S3 bucket for Qdrant snapshots"
+  value       = aws_s3_bucket.snapshots.id
+}
+
+output "snapshots_bucket_arn" {
+  description = "S3 bucket ARN for Qdrant snapshots"
+  value       = aws_s3_bucket.snapshots.arn
+}

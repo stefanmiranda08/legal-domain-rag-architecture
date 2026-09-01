@@ -109,9 +109,21 @@ A set of test queries with known relevant documents. The system runs retrieval a
 - Per-query: retrieved document IDs, ranks, relevance scores
 - Aggregate: recall@k, MRR, latency percentiles
 
-### 3.4 Observability Dashboard
+### 3.4 Chat Interface
 
-Streamlit application displaying:
+The primary user interface is a chat-based legal research assistant. Users interact via a conversational UI to ask questions about Australian law.
+
+**Features**:
+- Chat history within session
+- Jurisdiction and document type filters in sidebar
+- Expandable source citations for each answer
+- Chunking strategy selection for comparison
+
+**Location**: `dashboard/pages/0_chat.py`
+
+### 3.5 Observability Dashboard
+
+Streamlit application for system monitoring:
 
 | Page | Content |
 |------|---------|
@@ -629,7 +641,39 @@ Provisioned via Terraform in `infrastructure/`.
 1. On push to main: run tests, lint
 2. On release tag: build images, push to ECR, update ECS services
 
-### 8.3 Cost Management
+### 8.3 Data Persistence Strategy
+
+The 232K document corpus requires significant time and cost to embed (~$50-100 in OpenAI API costs). To avoid re-embedding on each deployment:
+
+**Initial Ingestion (One-time)**:
+1. Run ingestion locally with a powerful machine
+2. Export Qdrant snapshots to S3
+3. Store snapshot metadata in manifest file
+
+**Deployment Flow**:
+1. `terraform apply` creates infrastructure including EFS
+2. Qdrant container starts with empty storage
+3. Init script restores snapshots from S3 to EFS
+4. System is ready to serve queries
+
+**Scripts**:
+- `scripts/ingest_corpus.py`: Full corpus ingestion CLI
+- `scripts/snapshot_qdrant.py`: Export/import Qdrant snapshots to S3
+
+**S3 Bucket Contents**:
+```
+s3://legal-rag-snapshots-{account_id}/
+├── qdrant-snapshots/
+│   └── 20240115_103000/
+│       ├── manifest.txt
+│       ├── legal_chunks_recursive/snapshot.tar
+│       ├── legal_chunks_fixed/snapshot.tar
+│       └── legal_chunks_paragraph/snapshot.tar
+└── terraform-state/
+    └── terraform.tfstate
+```
+
+### 8.4 Cost Management
 
 Infrastructure is designed for on-demand deployment. Expected costs:
 
@@ -637,11 +681,11 @@ Infrastructure is designed for on-demand deployment. Expected costs:
 |----------|--------------|
 | Always running | ~$150 |
 | 10 hours/month demos | ~$3-5 |
-| Shut down (only S3 state) | ~$0.50 |
+| Shut down (only S3 storage) | ~$1-2 |
 
-S3 stores:
-- Terraform state file
-- Pre-computed embeddings backup (to avoid re-embedding on redeploy)
+**One-time Costs**:
+- Initial embedding generation: ~$50-100 (232K documents)
+- S3 snapshot storage: ~$0.50/month (compressed vectors)
 
 ---
 
@@ -675,14 +719,15 @@ legal-rag/
 ├── dashboard/
 │   ├── app.py                    # Streamlit entry point
 │   ├── pages/
-│   │   ├── chunking_comparison.py
-│   │   ├── retrieval_metrics.py
-│   │   └── query_logs.py
+│   │   ├── 0_chat.py             # Chat interface (primary UI)
+│   │   ├── 1_chunking_comparison.py
+│   │   ├── 2_retrieval_metrics.py
+│   │   └── 3_query_logs.py
 │   └── Dockerfile
 │
 ├── scripts/
-│   ├── ingest.py                 # CLI for ingestion
-│   └── evaluate.py               # CLI for evaluation
+│   ├── ingest_corpus.py          # Full corpus ingestion CLI
+│   └── snapshot_qdrant.py        # S3 snapshot export/import
 │
 ├── tests/
 │   ├── conftest.py
@@ -739,24 +784,52 @@ streamlit run dashboard/app.py
 pytest tests/
 ```
 
-### 10.2 Ingestion
+### 10.2 Initial Data Setup (One-time)
 
 ```bash
-# Full corpus ingestion (all strategies)
-python scripts/ingest.py --all-strategies
+# 1. Start local Qdrant
+docker run -p 6333:6333 qdrant/qdrant
 
-# Subset for testing
-python scripts/ingest.py --limit 1000 --strategy recursive
+# 2. Ingest full corpus (takes several hours)
+python scripts/ingest_corpus.py --all --strategies recursive fixed paragraph
+
+# 3. Export snapshots to S3
+python scripts/snapshot_qdrant.py export --bucket legal-rag-snapshots-ACCOUNT_ID
+
+# 4. Verify snapshots
+python scripts/snapshot_qdrant.py list --bucket legal-rag-snapshots-ACCOUNT_ID
 ```
 
-### 10.3 Evaluation
+### 10.3 AWS Deployment
 
 ```bash
-# Run evaluation on all strategies
-python scripts/evaluate.py --all-strategies
+# 1. Configure AWS credentials
+aws configure
 
-# Single strategy
-python scripts/evaluate.py --strategy recursive
+# 2. Set Terraform variables
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your values
+
+# 3. Deploy infrastructure
+terraform init
+terraform apply
+
+# 4. Build and push Docker images
+aws ecr get-login-password | docker login --username AWS --password-stdin ACCOUNT.dkr.ecr.REGION.amazonaws.com
+docker build -t legal-rag-api .
+docker push ACCOUNT.dkr.ecr.REGION.amazonaws.com/legal-rag-api:latest
+
+# 5. Access the application
+# API: http://ALB_DNS_NAME
+# Chat UI: http://ALB_DNS_NAME:8501
+```
+
+### 10.4 Teardown (After Demo)
+
+```bash
+# Destroy infrastructure (S3 snapshots persist)
+terraform destroy
 ```
 
 ---
