@@ -8,8 +8,8 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text, Date, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB, ARRAY
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text, Date, ForeignKey, JSON
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 
@@ -232,13 +232,13 @@ class QueryLog(Base):
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     query_text = Column(Text, nullable=False)
-    filters = Column(JSONB, nullable=True)
+    filters = Column(JSON, nullable=True)
     chunking_strategy = Column(String(50), nullable=True)
     chunks_retrieved = Column(Integer, nullable=True)
     latency_ms = Column(Integer, nullable=True)
     tokens_used = Column(Integer, nullable=True)
     answer_text = Column(Text, nullable=True)
-    citations = Column(JSONB, nullable=True)
+    citations = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -254,7 +254,7 @@ class EvaluationRun(Base):
     recall_at_10 = Column(Float, nullable=True)
     mrr = Column(Float, nullable=True)
     avg_latency_ms = Column(Float, nullable=True)
-    per_query_results = Column(JSONB, nullable=True)
+    per_query_results = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -265,7 +265,7 @@ class IngestionJob(Base):
 
     id = Column(String(100), primary_key=True)
     status = Column(String(50), nullable=False)
-    chunking_strategies = Column(ARRAY(String), nullable=True)
+    chunking_strategies = Column(JSON, nullable=True)
     documents_total = Column(Integer, nullable=True)
     documents_processed = Column(Integer, default=0)
     errors = Column(Integer, default=0)
@@ -281,5 +281,5 @@ class TestQuery(Base):
     id = Column(String(100), primary_key=True)
     test_set_id = Column(String(100), nullable=False)
     query_text = Column(Text, nullable=False)
-    expected_document_ids = Column(ARRAY(String), nullable=False)
+    expected_document_ids = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
