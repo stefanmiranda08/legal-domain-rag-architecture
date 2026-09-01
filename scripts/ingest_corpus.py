@@ -151,17 +151,22 @@ def main():
         )
 
         elapsed = time.time() - start_time
+        docs_processed = stats.get("documents_processed", 0)
+        chunks_created = stats.get("chunks_created", 0)
+        errors = stats.get("errors", 0)
+
         print("\n" + "=" * 60)
         print("Ingestion Complete")
         print("=" * 60)
-        print(f"Documents processed: {stats.documents_processed}")
-        print(f"Chunks created: {stats.chunks_created}")
-        print(f"Errors: {stats.errors}")
+        print(f"Documents processed: {docs_processed}")
+        print(f"Chunks created: {chunks_created}")
+        print(f"Errors: {errors}")
         print(f"Time elapsed: {elapsed / 60:.1f} minutes")
-        print(f"Rate: {stats.documents_processed / elapsed * 60:.1f} docs/minute")
+        if docs_processed > 0:
+            print(f"Rate: {docs_processed / elapsed * 60:.1f} docs/minute")
         print("=" * 60)
 
-        if stats.errors > 0:
+        if errors > 0:
             print("\nWarning: Some documents failed to process.")
             print("Check logs for details.")
 
