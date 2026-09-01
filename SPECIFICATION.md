@@ -33,24 +33,64 @@ This project demonstrates mid-level AI engineering capabilities: RAG pipeline im
 
 ### 2.1 Open Australian Legal Corpus
 
-- **Source**: https://huggingface.co/datasets/isaacus/open-australian-legal-corpus
-- **Size**: 232,560 documents, ~1.4B tokens
+- **Source**: https://huggingface.co/datasets/umarbutler/open-australian-legal-corpus
+- **Full Corpus Size**: 232,560 documents, ~1.4B tokens
 - **Format**: JSONL with structured metadata
 
-### 2.2 Document Schema
+### 2.2 Deployed Subset: Commonwealth Law
+
+For cost-effective demonstration, this project ingests only the **Commonwealth** jurisdiction subset of the corpus.
+
+| Attribute | Value |
+|-----------|-------|
+| **Subset** | Commonwealth (Federal) Law |
+| **Documents** | ~72,000 |
+| **Estimated Tokens** | ~750M |
+| **Embedding Cost** | ~$15 (OpenAI text-embedding-3-small) |
+| **Sources** | Federal Court of Australia (~60,000 decisions), High Court of Australia (~12,000 decisions), Commonwealth legislation |
+
+**Rationale for Commonwealth Subset**:
+- Well-defined legal scope: Australian Federal Law
+- Includes High Court of Australia (the nation's apex court with landmark constitutional decisions)
+- Includes Federal Court (significant case law on federal jurisdiction matters)
+- Contains both court decisions and legislation (unlike state subsets which are legislation-only)
+- Federal law applies uniformly across Australia
+- Cost-effective while maintaining substantial coverage
+
+**Topics Covered**:
+- Constitutional law and interpretation
+- Administrative law and judicial review
+- Corporations and securities law
+- Taxation law
+- Immigration and citizenship
+- Competition and consumer law
+- Intellectual property
+- Family law (federal jurisdiction)
+- Bankruptcy and insolvency
+- Employment law (Fair Work)
+- Environmental law (EPBC Act)
+- Native title
+- Privacy and data protection
+
+**Limitations**:
+- Does not include state/territory case law (Victoria, NSW, Queensland, etc.)
+- State-specific questions cannot be answered accurately
+- Some areas of law primarily handled by states (e.g., criminal law, property law, wills) have limited coverage
+
+### 2.3 Document Schema
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `version_id` | string | Unique document identifier |
 | `type` | string | `primary_legislation`, `secondary_legislation`, `bill`, `decision` |
-| `jurisdiction` | string | `commonwealth`, `new_south_wales`, `queensland`, `western_australia`, `south_australia`, `tasmania`, `norfolk_island` |
-| `source` | string | Origin database (e.g., `federal_court_of_australia`, `nsw_caselaw`) |
+| `jurisdiction` | string | `commonwealth` (filtered subset) |
+| `source` | string | `federal_court_of_australia`, `high_court_of_australia`, or federal legislation sources |
 | `citation` | string | Document title with jurisdiction |
 | `date` | string | ISO 8601 date or null |
 | `url` | string | Link to original document |
 | `text` | string | Full document text |
 
-### 2.3 Document Distribution
+### 2.4 Full Corpus Distribution (Reference)
 
 | Type | Count | Percentage |
 |------|-------|------------|
@@ -68,7 +108,7 @@ This project demonstrates mid-level AI engineering capabilities: RAG pipeline im
 Users submit natural language questions about Australian law. The system retrieves relevant document chunks and generates an answer with citations.
 
 **Example Query**:
-> "What are the requirements for a valid will in New South Wales?"
+> "What is the test for judicial review of administrative decisions under the ADJR Act?"
 
 **Response Structure**:
 - Generated answer (2-4 paragraphs)
@@ -99,15 +139,62 @@ The system implements multiple chunking strategies and stores chunks from each i
 
 ### 3.3 Evaluation Framework
 
-A set of test queries with known relevant documents. The system runs retrieval against each chunking strategy and records metrics.
+A set of test queries designed specifically for the Commonwealth law subset. The system runs retrieval against each chunking strategy and records metrics.
 
 **Evaluation Data**:
-- 50-100 manually curated query/relevant-document pairs
-- Covers different jurisdictions, document types, and query complexities
+- 30 curated queries covering Commonwealth law topics
+- Questions are designed to be answerable from Federal Court, High Court, and federal legislation
+- Covers constitutional law, administrative law, corporations, taxation, and other federal jurisdiction areas
 
 **Stored Metrics**:
 - Per-query: retrieved document IDs, ranks, relevance scores
 - Aggregate: recall@k, MRR, latency percentiles
+
+#### 3.3.1 Evaluation Test Queries
+
+The following 30 questions are used to evaluate retrieval performance. Each question is designed to be answerable from the Commonwealth law subset.
+
+**Constitutional Law (5 questions)**:
+1. What is the test for determining whether a law is supported by the corporations power under section 51(xx) of the Constitution?
+2. How has the High Court interpreted the implied freedom of political communication?
+3. What are the requirements for a valid referendum to amend the Australian Constitution?
+4. How does the separation of powers doctrine apply to federal courts in Australia?
+5. What is the scope of the external affairs power under section 51(xxix) of the Constitution?
+
+**Administrative Law (5 questions)**:
+1. What are the grounds for judicial review under the Administrative Decisions (Judicial Review) Act 1977?
+2. What constitutes a denial of procedural fairness in administrative decision-making?
+3. When is a decision considered to be affected by jurisdictional error?
+4. What is the test for determining whether reasons for an administrative decision are adequate?
+5. How does the doctrine of legitimate expectations apply to administrative law?
+
+**Corporations Law (5 questions)**:
+1. What are the directors' duties under the Corporations Act 2001?
+2. What is the test for insolvent trading under section 588G of the Corporations Act?
+3. How is oppressive conduct of company affairs defined under the Corporations Act?
+4. What are the requirements for a valid members' voluntary winding up?
+5. When can the corporate veil be pierced under Australian law?
+
+**Taxation Law (5 questions)**:
+1. What is the general anti-avoidance provision under Part IVA of the Income Tax Assessment Act?
+2. How is assessable income defined for tax purposes?
+3. What are the requirements for a deduction under section 8-1 of the ITAA 1997?
+4. When is a capital gain subject to CGT?
+5. What constitutes a fringe benefit under the Fringe Benefits Tax Assessment Act?
+
+**Immigration Law (5 questions)**:
+1. What are the grounds for visa cancellation under section 501 of the Migration Act?
+2. What is the definition of a refugee under Australian law?
+3. How does the character test apply to visa decisions?
+4. What are the requirements for a valid protection visa application?
+5. When can immigration detention be considered unlawful?
+
+**Other Federal Jurisdiction (5 questions)**:
+1. What constitutes misleading or deceptive conduct under the Australian Consumer Law?
+2. What are the elements of an unfair dismissal claim under the Fair Work Act?
+3. What is the standard of proof for civil penalty proceedings?
+4. How is native title defined under the Native Title Act 1993?
+5. What are the requirements for copyright infringement under the Copyright Act 1968?
 
 ### 3.4 Chat Interface
 
