@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """
-Script to ingest the full Australian Legal Corpus into Qdrant.
+Script to ingest the Commonwealth subset of the Australian Legal Corpus into Qdrant.
 
-This script should be run once locally to generate the vector embeddings.
-After ingestion, export a Qdrant snapshot and upload to S3 for deployment.
+This script ingests Commonwealth (federal) law documents only:
+- Federal Court of Australia (~60,000 decisions)
+- High Court of Australia (~12,000 decisions)
+- Commonwealth legislation
+
+Estimated cost: ~$15 for OpenAI embeddings (text-embedding-3-small)
 
 Usage:
-    # Full ingestion (232K documents) - takes several hours
+    # Ingest full Commonwealth subset (~72K documents, ~$15)
     python scripts/ingest_corpus.py --all
 
-    # Limited ingestion for testing
-    python scripts/ingest_corpus.py --limit 1000
+    # Limited ingestion for testing (recommended first)
+    python scripts/ingest_corpus.py --limit 100
 
-    # Specific jurisdiction
-    python scripts/ingest_corpus.py --jurisdiction commonwealth --limit 5000
-
-    # Resume from a specific offset
-    python scripts/ingest_corpus.py --offset 50000 --limit 10000
+    # Ingest with multiple chunking strategies
+    python scripts/ingest_corpus.py --all --strategies recursive fixed paragraph
 """
 
 import argparse
@@ -28,15 +29,13 @@ from datetime import datetime
 sys.path.insert(0, str(__file__).rsplit("/", 2)[0])
 
 from src.config import get_settings
-from src.database import get_qdrant_client, get_postgres_engine
+from src.database import get_postgres_engine, get_qdrant_client
 from src.ingestion.pipeline import IngestionPipeline
 from src.models import ChunkingStrategy, Jurisdiction
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Ingest Australian Legal Corpus into Qdrant"
-    )
+    parser = argparse.ArgumentParser(description="Ingest Australian Legal Corpus into Qdrant")
     parser.add_argument(
         "--all",
         action="store_true",
@@ -58,8 +57,13 @@ def parse_args():
         "--jurisdiction",
         type=str,
         choices=[j.value for j in Jurisdiction],
-        default=None,
-        help="Filter to specific jurisdiction",
+        default="commonwealth",
+        help="Filter to specific jurisdiction (default: commonwealth)",
+    )
+    parser.add_argument(
+        "--all-jurisdictions",
+        action="store_true",
+        help="Ingest all jurisdictions (overrides --jurisdiction)",
     )
     parser.add_argument(
         "--strategies",
@@ -98,13 +102,16 @@ def main():
     if args.qdrant_host:
         settings.qdrant_host = args.qdrant_host
 
+    # Determine jurisdiction filter
+    jurisdiction_str = "All" if args.all_jurisdictions else args.jurisdiction
+
     print("=" * 60)
     print("Australian Legal Corpus Ingestion")
     print("=" * 60)
     print(f"Started: {datetime.now().isoformat()}")
     print(f"Strategies: {args.strategies}")
-    print(f"Jurisdiction: {args.jurisdiction or 'All'}")
-    print(f"Limit: {args.limit or 'None (full corpus)'}")
+    print(f"Jurisdiction: {jurisdiction_str}")
+    print(f"Limit: {args.limit or 'None (full subset)'}")
     print(f"Offset: {args.offset}")
     print(f"Batch size: {args.batch_size}")
     print(f"Qdrant: {settings.qdrant_host}:{settings.qdrant_port}")
@@ -123,9 +130,9 @@ def main():
         settings=settings,
     )
 
-    # Parse jurisdiction
+    # Parse jurisdiction (default: commonwealth, unless --all-jurisdictions)
     jurisdiction = None
-    if args.jurisdiction:
+    if not args.all_jurisdictions and args.jurisdiction:
         jurisdiction = Jurisdiction(args.jurisdiction)
 
     # Parse strategies

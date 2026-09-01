@@ -17,8 +17,8 @@ Usage:
 """
 
 import argparse
-import sys
 import os
+import sys
 import tempfile
 from datetime import datetime
 
@@ -28,9 +28,7 @@ import boto3
 from botocore.exceptions import ClientError
 from qdrant_client import QdrantClient
 
-from src.config import get_settings
 from src.models import ChunkingStrategy
-
 
 COLLECTIONS = [f"legal_chunks_{s.value}" for s in ChunkingStrategy]
 
@@ -80,6 +78,7 @@ def export_snapshots(
         )
 
         import httpx
+
         response = httpx.get(snapshot_url, follow_redirects=True)
         response.raise_for_status()
 
@@ -96,7 +95,7 @@ def export_snapshots(
         # Cleanup
         os.unlink(tmp_path)
 
-        print(f"  Done!")
+        print("  Done!")
 
     # Write manifest
     manifest_key = f"{s3_prefix}/{timestamp}/manifest.txt"
@@ -146,13 +145,13 @@ def import_snapshots(
         # Note: This requires the snapshot file to be accessible to Qdrant
         # In practice, you'd upload to Qdrant's snapshot directory
         print(f"  Downloaded to {tmp_path}")
-        print(f"  Note: Manual restore may be required for production.")
+        print("  Note: Manual restore may be required for production.")
 
         # For local testing, you can use:
         # qdrant_client.recover_snapshot(collection_name, location=tmp_path)
 
         os.unlink(tmp_path)
-        print(f"  Done!")
+        print("  Done!")
 
 
 def list_snapshots(s3_bucket: str, s3_prefix: str = "qdrant-snapshots") -> None:
@@ -183,38 +182,28 @@ def list_snapshots(s3_bucket: str, s3_prefix: str = "qdrant-snapshots") -> None:
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Export/import Qdrant snapshots to/from S3"
-    )
+    parser = argparse.ArgumentParser(description="Export/import Qdrant snapshots to/from S3")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Export command
     export_parser = subparsers.add_parser("export", help="Export snapshots to S3")
     export_parser.add_argument("--bucket", required=True, help="S3 bucket name")
-    export_parser.add_argument(
-        "--prefix", default="qdrant-snapshots", help="S3 prefix"
-    )
+    export_parser.add_argument("--prefix", default="qdrant-snapshots", help="S3 prefix")
     export_parser.add_argument("--qdrant-host", default="localhost")
     export_parser.add_argument("--qdrant-port", type=int, default=6333)
 
     # Import command
     import_parser = subparsers.add_parser("import", help="Import snapshots from S3")
     import_parser.add_argument("--bucket", required=True, help="S3 bucket name")
-    import_parser.add_argument(
-        "--snapshot", required=True, help="Snapshot timestamp to import"
-    )
-    import_parser.add_argument(
-        "--prefix", default="qdrant-snapshots", help="S3 prefix"
-    )
+    import_parser.add_argument("--snapshot", required=True, help="Snapshot timestamp to import")
+    import_parser.add_argument("--prefix", default="qdrant-snapshots", help="S3 prefix")
     import_parser.add_argument("--qdrant-host", default="localhost")
     import_parser.add_argument("--qdrant-port", type=int, default=6333)
 
     # List command
     list_parser = subparsers.add_parser("list", help="List available snapshots")
     list_parser.add_argument("--bucket", required=True, help="S3 bucket name")
-    list_parser.add_argument(
-        "--prefix", default="qdrant-snapshots", help="S3 prefix"
-    )
+    list_parser.add_argument("--prefix", default="qdrant-snapshots", help="S3 prefix")
 
     return parser.parse_args()
 

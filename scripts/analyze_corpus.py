@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Analyze the Australian Legal Corpus to find suitable subsets."""
 
-from collections import defaultdict
-from datasets import load_dataset
 import sys
+from collections import defaultdict
+
+from datasets import load_dataset
+
 
 def analyze_corpus(sample_size: int = 10000):
     """Analyze corpus distribution by jurisdiction and source."""
@@ -55,7 +57,9 @@ def analyze_corpus(sample_size: int = 10000):
         est_chars = int(total_chars[jurisdiction] * scale_factor)
         est_tokens = est_chars // 4  # rough estimate
         est_cost = est_tokens * 0.02 / 1_000_000
-        print(f"{jurisdiction:25} {est_count:>8} docs  ~{est_tokens/1e6:>5.1f}M tokens  ~${est_cost:>5.2f}")
+        print(
+            f"{jurisdiction:25} {est_count:>8} docs  ~{est_tokens / 1e6:>5.1f}M tokens  ~${est_cost:>5.2f}"
+        )
 
     print("\n## By Document Type (estimated full corpus)")
     print("-" * 50)
