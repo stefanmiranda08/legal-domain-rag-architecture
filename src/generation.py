@@ -2,13 +2,12 @@
 
 from dataclasses import dataclass
 
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 
 from src.config import Settings, get_settings
 from src.models import Citation
 from src.retrieval import RetrievedChunk
-
 
 # Legal research assistant prompt template
 LEGAL_RAG_PROMPT = """You are a legal research assistant specializing in Australian law.
@@ -52,9 +51,7 @@ def build_context(chunks: list[RetrievedChunk]) -> str:
 
     context_parts = []
     for chunk in chunks:
-        context_parts.append(
-            f"[{chunk.citation}]\n{chunk.text}"
-        )
+        context_parts.append(f"[{chunk.citation}]\n{chunk.text}")
 
     return "\n\n---\n\n".join(context_parts)
 

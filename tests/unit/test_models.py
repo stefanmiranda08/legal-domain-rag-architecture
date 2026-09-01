@@ -8,13 +8,13 @@ from pydantic import ValidationError
 
 from src.models import (
     ChunkingStrategy,
+    Citation,
+    DocumentMetadata,
     DocumentType,
     Jurisdiction,
     QueryFilters,
     QueryRequest,
     QueryResponse,
-    Citation,
-    DocumentMetadata,
 )
 
 

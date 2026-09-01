@@ -8,10 +8,9 @@ from typing import Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text, Date, ForeignKey, JSON
+from sqlalchemy import JSON, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, relationship
-
 
 # === Enums ===
 

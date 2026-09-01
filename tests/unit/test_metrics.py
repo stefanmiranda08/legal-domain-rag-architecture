@@ -3,10 +3,10 @@
 import pytest
 
 from src.evaluation.metrics import (
-    recall_at_k,
-    mean_reciprocal_rank,
-    calculate_metrics,
     EvaluationResult,
+    calculate_metrics,
+    mean_reciprocal_rank,
+    recall_at_k,
 )
 
 

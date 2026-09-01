@@ -1,15 +1,15 @@
 """Tests for the generation module."""
 
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
 
 from src.generation import (
+    GeneratedAnswer,
     build_context,
     format_citations,
     generate_answer,
-    GeneratedAnswer,
 )
 from src.retrieval import RetrievedChunk
 

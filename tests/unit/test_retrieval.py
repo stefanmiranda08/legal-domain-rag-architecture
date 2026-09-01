@@ -9,9 +9,9 @@ from qdrant_client.models import ScoredPoint
 
 from src.models import ChunkingStrategy, DocumentType, Jurisdiction, QueryFilters
 from src.retrieval import (
+    RetrievedChunk,
     build_qdrant_filter,
     search_chunks,
-    RetrievedChunk,
 )
 
 

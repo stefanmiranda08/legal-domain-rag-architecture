@@ -1,12 +1,12 @@
 """Integration tests for the FastAPI application."""
 
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api import app, get_qdrant, get_postgres, get_settings
+from src.api import app, get_postgres, get_qdrant, get_settings
 
 
 @pytest.fixture
@@ -75,8 +75,8 @@ class TestQueryEndpoint:
 
     def test_query_returns_answer(self, client, mock_dependencies):
         """Query should return generated answer with citations."""
-        from src.models import Citation
         from src.generation import GeneratedAnswer
+        from src.models import Citation
 
         with patch("src.api.search_chunks") as mock_search:
             with patch("src.api.generate_answer") as mock_generate:

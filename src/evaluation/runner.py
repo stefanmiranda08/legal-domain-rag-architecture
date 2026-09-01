@@ -12,11 +12,11 @@ from sqlalchemy.engine import Engine
 from src.config import Settings, get_settings
 from src.database import get_postgres_session
 from src.evaluation.metrics import (
-    EvaluationResult,
     AggregatedMetrics,
-    recall_at_k,
-    mean_reciprocal_rank,
+    EvaluationResult,
     calculate_metrics,
+    mean_reciprocal_rank,
+    recall_at_k,
 )
 from src.models import ChunkingStrategy, EvaluationRun, PerQueryResult
 from src.retrieval import search_chunks
@@ -128,11 +128,13 @@ def run_evaluation(
         r10 = recall_at_k(retrieved_doc_ids, expected_doc_ids, k=10)
         mrr = mean_reciprocal_rank(retrieved_doc_ids, expected_doc_ids)
 
-        query_results.append({
-            "retrieved": retrieved_doc_ids,
-            "expected": expected_doc_ids,
-            "latency_ms": latency_ms,
-        })
+        query_results.append(
+            {
+                "retrieved": retrieved_doc_ids,
+                "expected": expected_doc_ids,
+                "latency_ms": latency_ms,
+            }
+        )
 
         per_query_results.append(
             PerQueryResult(

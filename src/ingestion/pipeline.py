@@ -1,6 +1,6 @@
 """Ingestion pipeline for processing documents into the RAG system."""
 
-from datetime import datetime, date
+from datetime import date, datetime
 from typing import TypedDict
 from uuid import uuid4
 
@@ -15,12 +15,14 @@ from src.database import (
     get_collection_name,
     get_postgres_session,
 )
-from src.ingestion.chunkers import get_chunker, Chunk
-from src.ingestion.loader import load_corpus, DocumentRecord
+from src.ingestion.chunkers import Chunk, get_chunker
+from src.ingestion.loader import DocumentRecord, load_corpus
+from src.models import (
+    Chunk as ChunkModel,
+)
 from src.models import (
     ChunkingStrategy,
     Document,
-    Chunk as ChunkModel,
     IngestionJob,
 )
 

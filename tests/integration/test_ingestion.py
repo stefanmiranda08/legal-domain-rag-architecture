@@ -1,20 +1,21 @@
 """Integration tests for the ingestion pipeline."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 from uuid import uuid4
 
+import pytest
+
+from src.database import get_postgres_engine, get_qdrant_client, init_postgres_schema
 from src.ingestion.loader import (
+    DocumentRecord,
     load_corpus,
     parse_document_metadata,
-    DocumentRecord,
 )
 from src.ingestion.pipeline import (
     IngestionPipeline,
     generate_embeddings,
 )
 from src.models import ChunkingStrategy, DocumentType, Jurisdiction
-from src.database import get_qdrant_client, get_postgres_engine, init_postgres_schema
 
 
 class TestDocumentRecord:
@@ -232,9 +233,7 @@ class TestIngestionPipeline:
         )
 
         # Create chunkers
-        chunkers = {
-            ChunkingStrategy.RECURSIVE: get_chunker(ChunkingStrategy.RECURSIVE)
-        }
+        chunkers = {ChunkingStrategy.RECURSIVE: get_chunker(ChunkingStrategy.RECURSIVE)}
 
         # Process directly
         stats = {

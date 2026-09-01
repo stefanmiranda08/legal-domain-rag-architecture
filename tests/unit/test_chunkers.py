@@ -3,14 +3,13 @@
 import pytest
 
 from src.ingestion.chunkers import (
+    Chunk,
     FixedSizeChunker,
     ParagraphChunker,
     RecursiveChunker,
     get_chunker,
-    Chunk,
 )
 from src.models import ChunkingStrategy
-
 
 # Sample legal text for testing
 SAMPLE_LEGAL_TEXT = """

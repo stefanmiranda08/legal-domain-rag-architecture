@@ -6,13 +6,13 @@ from sqlalchemy import text
 
 from src.config import Settings
 from src.database import (
-    get_qdrant_client,
+    check_postgres_health,
+    check_qdrant_health,
+    create_qdrant_collection,
     get_postgres_engine,
     get_postgres_session,
-    create_qdrant_collection,
+    get_qdrant_client,
     init_postgres_schema,
-    check_qdrant_health,
-    check_postgres_health,
 )
 from src.models import ChunkingStrategy
 
@@ -117,9 +117,7 @@ class TestPostgresConnection:
         # Check tables exist
         with engine.connect() as conn:
             # SQLite uses sqlite_master instead of information_schema
-            result = conn.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table'")
-            )
+            result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
             tables = {row[0] for row in result}
 
         expected_tables = {

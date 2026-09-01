@@ -10,31 +10,31 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 from qdrant_client import QdrantClient
 from sqlalchemy.engine import Engine
 
-from src.config import Settings, get_settings as _get_settings
+from src.config import Settings
+from src.config import get_settings as _get_settings
 from src.database import (
-    get_qdrant_client,
-    get_postgres_engine,
-    check_qdrant_health,
     check_postgres_health,
-    init_postgres_schema,
+    check_qdrant_health,
     create_qdrant_collection,
+    get_postgres_engine,
+    get_qdrant_client,
+    init_postgres_schema,
 )
 from src.generation import generate_answer
 from src.models import (
     ChunkingStrategy,
-    QueryRequest,
-    QueryResponse,
-    QueryFilters,
     Citation,
-    IngestRequest,
-    IngestResponse,
+    EvaluationMetrics,
     EvaluationRequest,
     EvaluationResponse,
-    EvaluationMetrics,
     HealthResponse,
+    IngestRequest,
+    IngestResponse,
+    QueryFilters,
+    QueryRequest,
+    QueryResponse,
 )
 from src.retrieval import search_chunks
-
 
 # Global state for dependency injection
 _qdrant_client: QdrantClient | None = None

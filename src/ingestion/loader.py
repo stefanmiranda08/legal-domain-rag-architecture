@@ -7,7 +7,6 @@ from datasets import load_dataset
 
 from src.models import DocumentType, Jurisdiction
 
-
 CORPUS_DATASET = "isaacus/open-australian-legal-corpus"
 
 

@@ -5,12 +5,12 @@ from datetime import date
 
 from openai import OpenAI
 from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue, DatetimeRange
+from qdrant_client.models import DatetimeRange, FieldCondition, Filter, MatchValue
 from sqlalchemy.engine import Engine
 
 from src.config import Settings, get_settings
 from src.database import get_collection_name, get_postgres_session
-from src.models import ChunkingStrategy, QueryFilters, Chunk
+from src.models import Chunk, ChunkingStrategy, QueryFilters
 
 
 @dataclass
