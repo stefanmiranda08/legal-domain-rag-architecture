@@ -71,3 +71,7 @@ data/
 models/
 *.pkl
 *.joblib
+
+# Evaluation results (can be large, regenerated)
+evaluation/results/*.json
+!evaluation/results/.gitkeep
