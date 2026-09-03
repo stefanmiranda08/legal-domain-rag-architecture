@@ -1,12 +1,15 @@
 """Streamlit dashboard for Legal RAG observability."""
 
 import streamlit as st
+from styles import apply_global_styles
 
 st.set_page_config(
     page_title="Legal RAG Dashboard",
     page_icon="⚖️",
     layout="wide",
 )
+
+apply_global_styles()
 
 st.title("Legal RAG Dashboard")
 st.markdown("Observability dashboard for the Australian Legal Corpus RAG system.")

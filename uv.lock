@@ -1393,6 +1393,9 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
+evaluation = [
+    { name = "pandas" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1404,6 +1407,7 @@ requires-dist = [
     { name = "langchain-text-splitters", specifier = ">=0.0.1" },
     { name = "openai", specifier = ">=1.10.0" },
     { name = "pandas", marker = "extra == 'dashboard'", specifier = ">=2.1.0" },
+    { name = "pandas", marker = "extra == 'evaluation'", specifier = ">=2.1.0" },
     { name = "plotly", marker = "extra == 'dashboard'", specifier = ">=5.18.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.9" },
     { name = "pydantic", specifier = ">=2.5.0" },
@@ -1418,7 +1422,7 @@ requires-dist = [
     { name = "tiktoken", specifier = ">=0.5.0" },
     { name = "uvicorn", specifier = ">=0.27.0" },
 ]
-provides-extras = ["dev", "dashboard"]
+provides-extras = ["dev", "dashboard", "evaluation"]
 
 [[package]]
 name = "markupsafe"

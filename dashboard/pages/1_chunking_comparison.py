@@ -3,12 +3,18 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
+import sys
+
+sys.path.insert(0, str(__file__).rsplit("/", 2)[0])
+from styles import apply_global_styles
 
 st.set_page_config(
     page_title="Chunking Comparison",
     page_icon="",
     layout="wide",
 )
+
+apply_global_styles()
 
 st.title("Chunking Strategy Comparison")
 st.markdown("Compare retrieval performance across different chunking strategies.")

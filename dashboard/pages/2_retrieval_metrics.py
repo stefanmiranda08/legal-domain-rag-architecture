@@ -4,12 +4,18 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import random
+import sys
+
+sys.path.insert(0, str(__file__).rsplit("/", 2)[0])
+from styles import apply_global_styles
 
 st.set_page_config(
     page_title="Retrieval Metrics",
     page_icon="",
     layout="wide",
 )
+
+apply_global_styles()
 
 st.title("Retrieval Metrics")
 st.markdown("Monitor query latency, volume, and filter usage statistics.")

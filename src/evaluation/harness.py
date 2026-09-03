@@ -1,29 +1,22 @@
 """
-Evaluation harness for RAG system using RAGAS metrics.
+Evaluation harness for RAG system using LLM-as-judge metrics.
 
 This module provides functionality to evaluate the RAG pipeline across
-different experimental configurations and compute quality metrics.
+different experimental configurations and compute quality metrics using
+OpenAI as the judge model.
 """
 
 import json
 import logging
-import os
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
-from ragas import evaluate
-from ragas.metrics import (
-    faithfulness,
-    answer_relevancy,
-    context_precision,
-    context_recall,
-)
-from ragas import EvaluationDataset, SingleTurnSample
+from openai import OpenAI
 
 from src.config import Settings
-from src.retrieval import search_chunks, RetrievedChunk
+from src.models import ChunkingStrategy
+from src.retrieval import search_chunks
 from src.generation import generate_answer
 
 logger = logging.getLogger(__name__)
@@ -115,11 +108,12 @@ def run_rag_pipeline(
 
     # Retrieval
     retrieval_start = time.perf_counter()
+    strategy_enum = ChunkingStrategy(config.chunking_strategy)
     chunks = search_chunks(
         query=query,
         qdrant_client=qdrant_client,
         postgres_engine=postgres_engine,
-        strategy=config.chunking_strategy,
+        strategy=strategy_enum,
         top_k=config.top_k,
         openai_api_key=settings.openai_api_key,
         settings=settings,
@@ -165,56 +159,174 @@ def run_rag_pipeline(
     )
 
 
-def compute_ragas_metrics(
+# =============================================================================
+# LLM-AS-JUDGE PROMPTS
+# =============================================================================
+
+FAITHFULNESS_PROMPT = """You are evaluating the faithfulness of an AI assistant's answer.
+
+Faithfulness measures whether the answer is factually consistent with the provided context documents.
+The answer should not contain claims that are not supported by the context.
+
+Context Documents:
+{context}
+
+Question: {question}
+
+Answer: {answer}
+
+Evaluate the faithfulness of the answer on a scale of 0.0 to 1.0:
+- 1.0: All claims in the answer are fully supported by the context
+- 0.5: Some claims are supported, but others are not found in the context
+- 0.0: The answer contains significant claims not supported by the context
+
+Respond with ONLY a JSON object in this exact format:
+{{"score": <float between 0 and 1>, "reason": "<brief explanation>"}}"""
+
+ANSWER_RELEVANCY_PROMPT = """You are evaluating the relevancy of an AI assistant's answer.
+
+Answer relevancy measures whether the answer actually addresses the user's question.
+An irrelevant answer might be factually correct but off-topic.
+
+Question: {question}
+
+Answer: {answer}
+
+Evaluate the relevancy of the answer on a scale of 0.0 to 1.0:
+- 1.0: The answer directly and completely addresses the question
+- 0.5: The answer partially addresses the question or includes unnecessary information
+- 0.0: The answer does not address the question at all
+
+Respond with ONLY a JSON object in this exact format:
+{{"score": <float between 0 and 1>, "reason": "<brief explanation>"}}"""
+
+CONTEXT_PRECISION_PROMPT = """You are evaluating the precision of retrieved context documents.
+
+Context precision measures whether the retrieved documents are relevant to answering the question.
+High precision means the retrieved documents contain information useful for answering the question.
+
+Question: {question}
+
+Retrieved Context Documents:
+{context}
+
+Evaluate the context precision on a scale of 0.0 to 1.0:
+- 1.0: All retrieved documents are highly relevant to the question
+- 0.5: Some documents are relevant, others are not
+- 0.0: The retrieved documents are not relevant to the question
+
+Respond with ONLY a JSON object in this exact format:
+{{"score": <float between 0 and 1>, "reason": "<brief explanation>"}}"""
+
+
+def evaluate_with_llm(
+    prompt: str,
+    api_key: str,
+    model: str = "gpt-4o-mini",
+) -> dict:
+    """
+    Use LLM to evaluate a metric and return score + reason.
+    """
+    client = OpenAI(api_key=api_key)
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=200,
+        )
+
+        content = response.choices[0].message.content.strip()
+
+        # Parse JSON response
+        # Handle potential markdown code blocks
+        if content.startswith("```"):
+            content = content.split("```")[1]
+            if content.startswith("json"):
+                content = content[4:]
+            content = content.strip()
+
+        result = json.loads(content)
+        return {
+            "score": float(result.get("score", 0.0)),
+            "reason": result.get("reason", ""),
+        }
+    except Exception as e:
+        logger.warning(f"LLM evaluation failed: {e}")
+        return {"score": 0.0, "reason": f"Evaluation error: {str(e)}"}
+
+
+def compute_llm_metrics(
     queries: list[str],
     answers: list[str],
     contexts: list[list[str]],
+    api_key: str,
+    judge_model: str = "gpt-4o-mini",
 ) -> tuple[dict, list[dict]]:
     """
-    Compute RAGAS metrics for a set of query-answer-context triples.
+    Compute LLM-as-judge metrics for a set of query-answer-context triples.
+
+    Metrics computed:
+    - Faithfulness: Is the answer grounded in the context?
+    - Answer Relevancy: Does the answer address the question?
+    - Context Precision: Are the retrieved documents relevant?
 
     Returns:
         Tuple of (aggregate_metrics, per_query_scores)
     """
-    # Build evaluation samples
-    samples = []
-    for query, answer, context in zip(queries, answers, contexts):
-        samples.append(
-            SingleTurnSample(
-                user_input=query,
-                response=answer,
-                retrieved_contexts=context,
-            )
+    per_query = []
+
+    for i, (query, answer, context_list) in enumerate(zip(queries, answers, contexts)):
+        context_str = "\n\n---\n\n".join(context_list[:5])  # Limit context for judge
+
+        # Evaluate faithfulness
+        faithfulness_result = evaluate_with_llm(
+            FAITHFULNESS_PROMPT.format(context=context_str, question=query, answer=answer),
+            api_key=api_key,
+            model=judge_model,
         )
 
-    dataset = EvaluationDataset(samples=samples)
+        # Evaluate answer relevancy
+        relevancy_result = evaluate_with_llm(
+            ANSWER_RELEVANCY_PROMPT.format(question=query, answer=answer),
+            api_key=api_key,
+            model=judge_model,
+        )
 
-    # Run evaluation
-    metrics = [
-        faithfulness,
-        answer_relevancy,
-        context_precision,
-    ]
+        # Evaluate context precision
+        precision_result = evaluate_with_llm(
+            CONTEXT_PRECISION_PROMPT.format(question=query, context=context_str),
+            api_key=api_key,
+            model=judge_model,
+        )
 
-    result = evaluate(
-        dataset=dataset,
-        metrics=metrics,
-    )
+        per_query.append({
+            "query_index": i,
+            "faithfulness": faithfulness_result["score"],
+            "faithfulness_reason": faithfulness_result["reason"],
+            "answer_relevancy": relevancy_result["score"],
+            "answer_relevancy_reason": relevancy_result["reason"],
+            "context_precision": precision_result["score"],
+            "context_precision_reason": precision_result["reason"],
+        })
 
-    # Extract aggregate metrics
-    aggregate = {}
-    for metric_name in ["faithfulness", "answer_relevancy", "context_precision"]:
-        if metric_name in result:
-            aggregate[metric_name] = float(result[metric_name])
+        logger.debug(f"  Query {i+1}: F={faithfulness_result['score']:.2f}, "
+                    f"R={relevancy_result['score']:.2f}, P={precision_result['score']:.2f}")
 
-    # Extract per-query scores
-    per_query = []
-    if hasattr(result, "scores") and result.scores:
-        for i, scores in enumerate(result.scores):
-            per_query.append({
-                "query_index": i,
-                **{k: float(v) if v is not None else None for k, v in scores.items()}
-            })
+    # Compute aggregates
+    if per_query:
+        aggregate = {
+            "faithfulness": sum(q["faithfulness"] for q in per_query) / len(per_query),
+            "answer_relevancy": sum(q["answer_relevancy"] for q in per_query) / len(per_query),
+            "context_precision": sum(q["context_precision"] for q in per_query) / len(per_query),
+        }
+    else:
+        aggregate = {
+            "faithfulness": 0.0,
+            "answer_relevancy": 0.0,
+            "context_precision": 0.0,
+        }
 
     return aggregate, per_query
 
@@ -282,12 +394,14 @@ def run_evaluation(
                 "error": str(e),
             })
 
-    # Compute RAGAS metrics
-    logger.info("Computing RAGAS metrics...")
-    aggregate_metrics, per_query_scores = compute_ragas_metrics(
+    # Compute LLM-as-judge metrics
+    logger.info("Computing LLM-as-judge metrics...")
+    aggregate_metrics, per_query_scores = compute_llm_metrics(
         queries=all_queries,
         answers=all_answers,
         contexts=all_contexts,
+        api_key=settings.openai_api_key,
+        judge_model="gpt-4o-mini",  # Use smaller model for judging
     )
 
     # Add latency metrics

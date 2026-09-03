@@ -33,7 +33,6 @@ dashboard = [
     "pandas>=2.1.0",
 ]
 evaluation = [
-    "ragas>=0.1.0",
     "pandas>=2.1.0",
 ]
 

@@ -12,201 +12,133 @@ A legal domain RAG (Retrieval-Augmented Generation) system for querying Australi
 
 ## Current State (as of handover)
 
-### In Progress: Data Ingestion
+### Completed: Data Ingestion
 
-The user is currently running the full Commonwealth dataset ingestion:
+Ingestion completed successfully:
+- **99,220 Commonwealth documents** ingested
+- **1,981,579 chunks** in PostgreSQL
+- **1,981,579 vectors** in Qdrant (validated, no orphans)
 
-```bash
-caffeinate -i uv run python scripts/ingest_corpus.py --all
+### In Progress: Evaluation Harness
+
+Building an evaluation harness to compare experimental variables. The harness is 90% complete but has a minor bug to fix.
+
+**Bug to fix**: In `src/evaluation/harness.py`, line ~117, the `QueryResult` dataclass references `c.score` but `Citation` objects use `relevance_score`. Change:
+```python
+# From:
+"score": c.score,
+# To:
+"score": c.relevance_score,
 ```
 
-**Dataset**: Commonwealth subset of Open Australian Legal Corpus
-- ~72,000 documents (Federal Court + High Court + federal legislation)
-- ~750M tokens
-- Estimated cost: ~$15 in OpenAI embedding API calls
-- Estimated time: Several hours
-
-**Check progress**:
+**After fixing, run evaluation**:
 ```bash
-# If running in background
-tail -f ingestion.log
+# Run chunking strategy comparison
+python scripts/run_evaluation.py --name "chunking_recursive" --chunking-strategy recursive --top-k 10 --llm-model gpt-5.4 --system-prompt professional
 
-# Check database counts
-docker exec legal-rag-postgres psql -U legal_rag -d legal_rag -c "SELECT COUNT(*) FROM documents;"
+python scripts/run_evaluation.py --name "chunking_fixed" --chunking-strategy fixed --top-k 10 --llm-model gpt-5.4 --system-prompt professional
+
+python scripts/run_evaluation.py --name "chunking_paragraph" --chunking-strategy paragraph --top-k 10 --llm-model gpt-5.4 --system-prompt professional
 ```
 
 ---
 
-## What's Been Completed
+## What's Been Completed This Session
 
-### Implementation (12 Stages)
-1. Project setup with config and data models
-2. Database connections (Qdrant, PostgreSQL)
-3. Chunking strategies (fixed, paragraph, recursive)
-4. Ingestion pipeline
-5. Retrieval module with vector search and filtering
-6. Generation module with LLM answer synthesis
-7. FastAPI application with REST endpoints
-8. Evaluation framework with metrics
-9. Streamlit observability dashboard + chat interface
-10. Docker configuration
-11. Terraform AWS infrastructure
-12. GitHub Actions CI/CD
+### 1. Fixed Ingestion Pipeline Batching
+- OpenAI embedding: batch by token count (250k max) instead of item count
+- Qdrant upserts: batch to 500 points to avoid 32MB payload limit
+- Added logging throughout pipeline
 
-**Tests**: 103 passing
+### 2. Created Validation Script
+- `scripts/validate_ingestion.py` - detects orphaned vectors and duplicate chunks
+- Found and cleaned up 6,582 orphaned Qdrant vectors
 
-### Key Commits
-- All code is pushed to GitHub
-- CI workflow has lint as non-blocking (continues on error)
+### 3. Improved Generation Prompt
+- Added "professional" system prompt variant with structured response guidelines
+- Multiple prompt variants supported via `prompt_variant` parameter
 
----
+### 4. Built Evaluation Framework
+- `evaluation/test_queries.json` - 30 test queries across 6 legal categories
+- `evaluation/experiment_config.py` - experimental variable definitions
+- `src/evaluation/harness.py` - LLM-as-judge evaluation (faithfulness, relevancy, context precision)
+- `scripts/run_evaluation.py` - CLI for running experiments
+- `dashboard/pages/4_evaluation.py` - Streamlit results visualization
 
-## What's Next (After Ingestion Completes)
+### 5. Reduced Dashboard Text Size
+- `dashboard/styles.py` - shared CSS applied across all pages
 
-1. **Verify ingestion success**:
-   ```bash
-   docker exec legal-rag-postgres psql -U legal_rag -d legal_rag -c "SELECT COUNT(*) FROM documents;"
-   curl http://localhost:6333/collections/legal_chunks_recursive
-   ```
-
-2. **Test the RAG system locally**:
-   ```bash
-   # Start the API
-   uv run uvicorn src.api:app --reload
-
-   # Start the dashboard (in another terminal)
-   uv run streamlit run dashboard/app.py
-
-   # Test a query
-   curl -X POST http://localhost:8000/query \
-     -H "Content-Type: application/json" \
-     -d '{"query": "What is the test for negligence?"}'
-   ```
-
-3. **Export Qdrant snapshot to S3** (for deployment):
-   ```bash
-   python scripts/snapshot_qdrant.py export --bucket legal-rag-snapshots-ACCOUNT_ID
-   ```
-
-4. **Deploy to AWS**:
-   ```bash
-   cd terraform
-   cp terraform.tfvars.example terraform.tfvars
-   # Edit terraform.tfvars with secrets
-   terraform init
-   terraform apply
-   ```
+### 6. Engineering Problems Log
+- `engineering_problems.md` - documents challenges for interview discussion
+  - API payload limit batching
+  - Orphaned vectors from transactional mismatch
 
 ---
 
-## Key Technical Details
+## Running the System
 
-### Architecture
-- **PostgreSQL**: Document metadata, chunk text, query logs, evaluation results
-- **Qdrant**: Vector embeddings (1536 dimensions, cosine similarity)
-- **Flow**: Query → embed → Qdrant search → get chunks → LLM generates answer with citations
-
-### Environment Variables Required
+### Prerequisites
 ```bash
+# Ensure Docker containers are running
+docker ps  # Should see legal-rag-postgres and qdrant
+
+# Set environment variables (or use .env file)
 export OPENAI_API_KEY="sk-..."
-export POSTGRES_USER=legal_rag
-export POSTGRES_PASSWORD=legal_rag_password
-export POSTGRES_DB=legal_rag
 ```
 
-### Docker Services (Local Dev)
+### Start the Application
 ```bash
-# PostgreSQL
-docker run -d -p 5432:5432 \
-  -e POSTGRES_USER=legal_rag \
-  -e POSTGRES_PASSWORD=legal_rag_password \
-  -e POSTGRES_DB=legal_rag \
-  --name legal-rag-postgres \
-  postgres:15-alpine
+# Terminal 1: API
+uv run uvicorn src.api:app --reload
 
-# Qdrant
-docker run -d -p 6333:6333 -v qdrant_data:/qdrant/storage qdrant/qdrant
+# Terminal 2: Dashboard
+uv run streamlit run dashboard/app.py
 ```
 
-### Database Tables
-- `documents` - Document metadata (version_id is unique key)
-- `chunks` - Chunk text and Qdrant point ID reference
-- `query_logs` - Query history
-- `evaluation_runs` - Evaluation metrics
+### Access Points
+- API: http://localhost:8000
+- Dashboard: http://localhost:8501
+- Chat Interface: http://localhost:8501 (page 0)
+- Evaluation Results: http://localhost:8501 (page 4)
 
 ---
 
-## Common Issues & Solutions
+## Key Files Changed This Session
 
-### 1. "role does not exist" PostgreSQL error
-Stop any local Homebrew postgres that conflicts with Docker:
-```bash
-launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/homebrew.mxcl.postgresql@18.plist
-pkill -9 -f postgres
-```
-
-### 2. OpenAI API key not found
-Must be **exported**, not just set:
-```bash
-export OPENAI_API_KEY="sk-..."  # Not just OPENAI_API_KEY="sk-..."
-```
-
-### 3. HuggingFace network errors
-Download dataset locally first - it caches to `~/.cache/huggingface/datasets/`
-
-### 4. Duplicate key errors during ingestion
-Pipeline is now idempotent - skips existing documents. Or clear DB:
-```bash
-docker exec legal-rag-postgres psql -U legal_rag -d legal_rag -c "TRUNCATE documents, chunks CASCADE;"
-curl -X DELETE "http://localhost:6333/collections/legal_chunks_recursive"
-```
-
-### 5. Git push fails for workflow files
-```bash
-gh auth refresh -s workflow
-TOKEN=$(gh auth token) && git push https://stefanmiranda08:${TOKEN}@github.com/stefanmiranda08/legal-domain-rag-architecture.git main
-```
+| File | Purpose |
+|------|---------|
+| `src/ingestion/pipeline.py` | Token-based batching, Qdrant batch upserts, logging |
+| `src/ingestion/loader.py` | Corpus loading logging |
+| `src/generation.py` | Multiple system prompt variants |
+| `src/evaluation/harness.py` | LLM-as-judge evaluation harness |
+| `scripts/validate_ingestion.py` | Data integrity validation |
+| `scripts/run_evaluation.py` | Evaluation CLI |
+| `evaluation/test_queries.json` | 30 test queries |
+| `evaluation/experiment_config.py` | Experimental variables |
+| `dashboard/pages/4_evaluation.py` | Evaluation results dashboard |
+| `dashboard/styles.py` | Shared CSS styles |
+| `engineering_problems.md` | Interview prep documentation |
 
 ---
 
-## File Structure
+## Experimental Variables for Evaluation
 
-```
-├── src/                    # Core application
-│   ├── api.py             # FastAPI endpoints
-│   ├── config.py          # Settings (pydantic-settings)
-│   ├── models.py          # SQLAlchemy + Pydantic schemas
-│   ├── database.py        # DB connections
-│   ├── retrieval.py       # Vector search
-│   ├── generation.py      # LLM answer generation
-│   ├── ingestion/         # Data pipeline
-│   └── evaluation/        # Metrics framework
-├── dashboard/             # Streamlit UI
-│   └── pages/
-│       ├── 0_chat.py      # Chat interface (main UI)
-│       ├── 1_chunking_comparison.py
-│       ├── 2_retrieval_metrics.py
-│       └── 3_query_logs.py
-├── scripts/
-│   ├── ingest_corpus.py   # Ingestion CLI
-│   └── snapshot_qdrant.py # S3 export/import
-├── terraform/             # AWS infrastructure
-├── tests/                 # 103 tests
-├── SPECIFICATION.md       # Full functional spec
-└── docker-compose.yml     # Local dev setup
-```
+| Variable | Options |
+|----------|---------|
+| `chunking_strategy` | fixed, paragraph, recursive |
+| `top_k` | 5, 10, 15, 20 |
+| `llm_model` | gpt-4o-mini, gpt-4o, gpt-5.4 |
+| `system_prompt` | default, professional |
 
 ---
 
-## Evaluation Test Queries
+## Next Steps
 
-30 questions defined in SPECIFICATION.md covering:
-- Constitutional law (5)
-- Administrative law (5)
-- Corporations law (5)
-- Taxation law (5)
-- Immigration law (5)
-- Other federal (consumer, employment, native title, copyright) (5)
+1. **Fix evaluation harness bug** (see above)
+2. **Run chunking strategy comparison** with fixed variables
+3. **View results** in Streamlit dashboard (page 4)
+4. **Run additional experiments** varying other parameters
+5. **Commit and push** evaluation results
 
 ---
 
@@ -216,3 +148,5 @@ TOKEN=$(gh auth token) && git push https://stefanmiranda08:${TOKEN}@github.com/s
 - Lint failures should not block CI/CD pipeline
 - Commonwealth subset only (~$15 budget for embeddings)
 - Deploy only when demoing (to minimize AWS costs)
+- Prefer lightweight frameworks over heavyweight ones
+- Use `.env` file for configuration (already created)

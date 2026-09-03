@@ -3,12 +3,18 @@
 import streamlit as st
 import httpx
 import os
+import sys
+
+sys.path.insert(0, str(__file__).rsplit("/", 2)[0])
+from styles import apply_global_styles
 
 st.set_page_config(
     page_title="Legal Assistant",
     page_icon="",
     layout="wide",
 )
+
+apply_global_styles()
 
 # API configuration
 API_URL = os.getenv("API_URL", "http://localhost:8000")
