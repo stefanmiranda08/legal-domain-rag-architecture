@@ -153,12 +153,14 @@ def main():
         elapsed = time.time() - start_time
         docs_processed = stats.get("documents_processed", 0)
         chunks_created = stats.get("chunks_created", 0)
+        skipped = stats.get("skipped", 0)
         errors = stats.get("errors", 0)
 
         print("\n" + "=" * 60)
         print("Ingestion Complete")
         print("=" * 60)
         print(f"Documents processed: {docs_processed}")
+        print(f"Documents skipped (already exist): {skipped}")
         print(f"Chunks created: {chunks_created}")
         print(f"Errors: {errors}")
         print(f"Time elapsed: {elapsed / 60:.1f} minutes")

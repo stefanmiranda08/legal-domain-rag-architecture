@@ -1,11 +1,14 @@
 """Load documents from the Open Australian Legal Corpus."""
 
+import logging
 from dataclasses import dataclass
 from typing import Iterator
 
 from datasets import load_dataset
 
 from src.models import DocumentType, Jurisdiction
+
+logger = logging.getLogger(__name__)
 
 CORPUS_DATASET = "isaacus/open-australian-legal-corpus"
 
@@ -88,17 +91,26 @@ def load_corpus(
     Yields:
         DocumentRecord for each document in the corpus.
     """
+    logger.info(f"Connecting to HuggingFace dataset: {CORPUS_DATASET}")
+    logger.info(f"  Jurisdiction filter: {jurisdiction_filter.value if jurisdiction_filter else 'None'}")
+    logger.info(f"  Limit: {limit if limit else 'None'}")
+
     dataset = load_dataset(
         CORPUS_DATASET,
         split="corpus",
         streaming=True,
     )
+    logger.info("Dataset stream initialized, beginning iteration...")
 
     count = 0
+    skipped_jurisdiction = 0
     for item in dataset:
         # Apply jurisdiction filter if specified
         if jurisdiction_filter is not None:
             if item["jurisdiction"] != jurisdiction_filter.value:
+                skipped_jurisdiction += 1
+                if skipped_jurisdiction % 10000 == 0:
+                    logger.info(f"  Skipped {skipped_jurisdiction} non-{jurisdiction_filter.value} docs...")
                 continue
 
         try:
@@ -110,4 +122,5 @@ def load_corpus(
                 break
         except (KeyError, ValueError) as e:
             # Skip malformed documents
+            logger.debug(f"Skipping malformed document: {e}")
             continue
