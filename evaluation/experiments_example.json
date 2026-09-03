@@ -1,0 +1,26 @@
+{
+  "description": "Example experiment configuration file",
+  "experiments": [
+    {
+      "name": "baseline_recursive_k10",
+      "chunking_strategy": "recursive",
+      "top_k": 10,
+      "llm_model": "gpt-4o-mini",
+      "system_prompt": "professional"
+    },
+    {
+      "name": "baseline_fixed_k10",
+      "chunking_strategy": "fixed",
+      "top_k": 10,
+      "llm_model": "gpt-4o-mini",
+      "system_prompt": "professional"
+    },
+    {
+      "name": "baseline_paragraph_k10",
+      "chunking_strategy": "paragraph",
+      "top_k": 10,
+      "llm_model": "gpt-4o-mini",
+      "system_prompt": "professional"
+    }
+  ]
+}

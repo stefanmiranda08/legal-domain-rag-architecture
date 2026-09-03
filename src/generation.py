@@ -9,8 +9,29 @@ from src.config import Settings, get_settings
 from src.models import Citation
 from src.retrieval import RetrievedChunk
 
-# Legal research assistant prompt template
-LEGAL_RAG_PROMPT = """You are a professional legal research assistant specialising in Australian federal law. Your role is to analyse legal documents and provide clear, accurate, and well-structured responses to legal research queries.
+# =============================================================================
+# SYSTEM PROMPT VARIANTS
+# =============================================================================
+
+# Default minimal prompt
+PROMPT_DEFAULT = """You are a legal research assistant specializing in Australian law.
+Answer the user's question based on the provided legal documents.
+Cite specific cases or legislation in your answer using the format [Citation].
+
+If the provided documents do not contain sufficient information to answer the question,
+clearly state that and explain what information is missing.
+
+Be precise and accurate. Do not make claims that are not supported by the provided documents.
+
+Documents:
+{context}
+
+Question: {question}
+
+Provide a clear, well-structured answer with citations to the source documents."""
+
+# Professional detailed prompt
+PROMPT_PROFESSIONAL = """You are a professional legal research assistant specialising in Australian federal law. Your role is to analyse legal documents and provide clear, accurate, and well-structured responses to legal research queries.
 
 ## Response Guidelines
 
@@ -47,6 +68,23 @@ LEGAL_RAG_PROMPT = """You are a professional legal research assistant specialisi
 ---
 
 Provide your response below."""
+
+# Registry of available prompts
+SYSTEM_PROMPTS = {
+    "default": PROMPT_DEFAULT,
+    "professional": PROMPT_PROFESSIONAL,
+}
+
+
+def get_system_prompt(variant: str = "professional") -> str:
+    """Get a system prompt by variant name."""
+    if variant not in SYSTEM_PROMPTS:
+        raise ValueError(f"Unknown prompt variant: {variant}. Available: {list(SYSTEM_PROMPTS.keys())}")
+    return SYSTEM_PROMPTS[variant]
+
+
+# Default prompt for backwards compatibility
+LEGAL_RAG_PROMPT = PROMPT_PROFESSIONAL
 
 
 @dataclass
@@ -128,6 +166,7 @@ def generate_answer(
     openai_api_key: str,
     model: str = "gpt-4o-mini",
     settings: Settings | None = None,
+    prompt_variant: str = "professional",
 ) -> GeneratedAnswer:
     """
     Generate an answer using the LLM with retrieved context.
@@ -138,6 +177,7 @@ def generate_answer(
         openai_api_key: OpenAI API key.
         model: LLM model to use.
         settings: Optional settings override.
+        prompt_variant: System prompt variant ("default" or "professional").
 
     Returns:
         GeneratedAnswer with text, citations, and token usage.
@@ -164,8 +204,9 @@ def generate_answer(
         temperature=0.1,  # Low temperature for factual responses
     )
 
-    # Create prompt
-    prompt = ChatPromptTemplate.from_template(LEGAL_RAG_PROMPT)
+    # Create prompt from selected variant
+    prompt_template = get_system_prompt(prompt_variant)
+    prompt = ChatPromptTemplate.from_template(prompt_template)
 
     # Generate response
     messages = prompt.format_messages(context=context, question=query)

@@ -135,6 +135,7 @@ def run_rag_pipeline(
         openai_api_key=settings.openai_api_key,
         model=config.llm_model,
         settings=settings,
+        prompt_variant=config.system_prompt,
     )
     generation_end = time.perf_counter()
     generation_latency = (generation_end - generation_start) * 1000
