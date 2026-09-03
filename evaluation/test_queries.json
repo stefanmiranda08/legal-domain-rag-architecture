@@ -1,0 +1,156 @@
+{
+  "version": "1.0",
+  "description": "30 evaluation queries for Commonwealth law RAG system",
+  "queries": [
+    {
+      "id": "const_1",
+      "category": "constitutional_law",
+      "query": "What is the test for determining whether a law is supported by the corporations power under section 51(xx) of the Constitution?"
+    },
+    {
+      "id": "const_2",
+      "category": "constitutional_law",
+      "query": "How has the High Court interpreted the implied freedom of political communication?"
+    },
+    {
+      "id": "const_3",
+      "category": "constitutional_law",
+      "query": "What are the requirements for a valid referendum to amend the Australian Constitution?"
+    },
+    {
+      "id": "const_4",
+      "category": "constitutional_law",
+      "query": "How does the separation of powers doctrine apply to federal courts in Australia?"
+    },
+    {
+      "id": "const_5",
+      "category": "constitutional_law",
+      "query": "What is the scope of the external affairs power under section 51(xxix) of the Constitution?"
+    },
+    {
+      "id": "admin_1",
+      "category": "administrative_law",
+      "query": "What are the grounds for judicial review under the Administrative Decisions (Judicial Review) Act 1977?"
+    },
+    {
+      "id": "admin_2",
+      "category": "administrative_law",
+      "query": "What constitutes a denial of procedural fairness in administrative decision-making?"
+    },
+    {
+      "id": "admin_3",
+      "category": "administrative_law",
+      "query": "When is a decision considered to be affected by jurisdictional error?"
+    },
+    {
+      "id": "admin_4",
+      "category": "administrative_law",
+      "query": "What is the test for determining whether reasons for an administrative decision are adequate?"
+    },
+    {
+      "id": "admin_5",
+      "category": "administrative_law",
+      "query": "How does the doctrine of legitimate expectations apply to administrative law?"
+    },
+    {
+      "id": "corp_1",
+      "category": "corporations_law",
+      "query": "What are the directors' duties under the Corporations Act 2001?"
+    },
+    {
+      "id": "corp_2",
+      "category": "corporations_law",
+      "query": "What is the test for insolvent trading under section 588G of the Corporations Act?"
+    },
+    {
+      "id": "corp_3",
+      "category": "corporations_law",
+      "query": "How is oppressive conduct of company affairs defined under the Corporations Act?"
+    },
+    {
+      "id": "corp_4",
+      "category": "corporations_law",
+      "query": "What are the requirements for a valid members' voluntary winding up?"
+    },
+    {
+      "id": "corp_5",
+      "category": "corporations_law",
+      "query": "When can the corporate veil be pierced under Australian law?"
+    },
+    {
+      "id": "tax_1",
+      "category": "taxation_law",
+      "query": "What is the general anti-avoidance provision under Part IVA of the Income Tax Assessment Act?"
+    },
+    {
+      "id": "tax_2",
+      "category": "taxation_law",
+      "query": "How is assessable income defined for tax purposes?"
+    },
+    {
+      "id": "tax_3",
+      "category": "taxation_law",
+      "query": "What are the requirements for a deduction under section 8-1 of the ITAA 1997?"
+    },
+    {
+      "id": "tax_4",
+      "category": "taxation_law",
+      "query": "When is a capital gain subject to CGT?"
+    },
+    {
+      "id": "tax_5",
+      "category": "taxation_law",
+      "query": "What constitutes a fringe benefit under the Fringe Benefits Tax Assessment Act?"
+    },
+    {
+      "id": "immig_1",
+      "category": "immigration_law",
+      "query": "What are the grounds for visa cancellation under section 501 of the Migration Act?"
+    },
+    {
+      "id": "immig_2",
+      "category": "immigration_law",
+      "query": "What is the definition of a refugee under Australian law?"
+    },
+    {
+      "id": "immig_3",
+      "category": "immigration_law",
+      "query": "How does the character test apply to visa decisions?"
+    },
+    {
+      "id": "immig_4",
+      "category": "immigration_law",
+      "query": "What are the requirements for a valid protection visa application?"
+    },
+    {
+      "id": "immig_5",
+      "category": "immigration_law",
+      "query": "When can immigration detention be considered unlawful?"
+    },
+    {
+      "id": "other_1",
+      "category": "other_federal",
+      "query": "What constitutes misleading or deceptive conduct under the Australian Consumer Law?"
+    },
+    {
+      "id": "other_2",
+      "category": "other_federal",
+      "query": "What are the elements of an unfair dismissal claim under the Fair Work Act?"
+    },
+    {
+      "id": "other_3",
+      "category": "other_federal",
+      "query": "What is the standard of proof for civil penalty proceedings?"
+    },
+    {
+      "id": "other_4",
+      "category": "other_federal",
+      "query": "How is native title defined under the Native Title Act 1993?"
+    },
+    {
+      "id": "other_5",
+      "category": "other_federal",
+      "query": "What are the requirements for copyright infringement under the Copyright Act 1968?"
+    }
+  ]
+}
