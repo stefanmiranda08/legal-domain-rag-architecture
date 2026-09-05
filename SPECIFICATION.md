@@ -22,7 +22,7 @@ This project demonstrates mid-level AI engineering capabilities: RAG pipeline im
 | Vector Database | Qdrant (self-hosted on ECS) |
 | Relational Database | PostgreSQL (RDS) |
 | Embeddings | OpenAI text-embedding-3-small |
-| Generation | OpenAI GPT-4o-mini |
+| Generation | OpenAI GPT-5.4 (configurable) |
 | Dashboard | Streamlit |
 | Infrastructure | AWS ECS Fargate, Terraform |
 | CI/CD | GitHub Actions |
@@ -44,10 +44,10 @@ For cost-effective demonstration, this project ingests only the **Commonwealth**
 | Attribute | Value |
 |-----------|-------|
 | **Subset** | Commonwealth (Federal) Law |
-| **Documents** | ~72,000 |
-| **Estimated Tokens** | ~750M |
+| **Documents** | 99,220 |
+| **Chunks** | ~2M (with recursive chunking) |
 | **Embedding Cost** | ~$15 (OpenAI text-embedding-3-small) |
-| **Sources** | Federal Court of Australia (~60,000 decisions), High Court of Australia (~12,000 decisions), Commonwealth legislation |
+| **Sources** | Federal Court of Australia, High Court of Australia, Commonwealth legislation |
 
 **Rationale for Commonwealth Subset**:
 - Well-defined legal scope: Australian Federal Law
@@ -241,9 +241,12 @@ Streamlit application for system monitoring:
 
 | Page | Content |
 |------|---------|
+| Chat | Primary query interface with filters and citations |
 | Chunking Comparison | Bar charts comparing recall@k across strategies, table of per-query results |
 | Retrieval Metrics | Latency distribution, daily query volume, filter usage breakdown |
 | Query Logs | Searchable log of queries with retrieved chunks and generated answers |
+| Evaluation | LLM-as-judge evaluation results (faithfulness, relevancy, precision) |
+| Engineering Decisions | Documentation of design decisions and trade-offs |
 
 ---
 
@@ -791,20 +794,35 @@ Provide a clear, accurate answer with citations to the source documents.
 
 **Pages**:
 
-1. **Chunking Comparison** (`pages/chunking_comparison.py`)
+1. **Chat** (`pages/0_chat.py`)
+   - Primary query interface
+   - Jurisdiction and document type filters
+   - Expandable source citations
+
+2. **Chunking Comparison** (`pages/1_chunking_comparison.py`)
    - Select evaluation runs to compare
    - Bar chart: recall@5, recall@10, MRR per strategy
    - Table: per-query breakdown with expandable details
 
-2. **Retrieval Metrics** (`pages/retrieval_metrics.py`)
+3. **Retrieval Metrics** (`pages/2_retrieval_metrics.py`)
    - Time series: query volume over time
    - Histogram: latency distribution
    - Pie chart: filter usage (by jurisdiction, document type)
 
-3. **Query Logs** (`pages/query_logs.py`)
+4. **Query Logs** (`pages/3_query_logs.py`)
    - Searchable table of recent queries
    - Expandable rows showing retrieved chunks and generated answer
    - Export functionality
+
+5. **Evaluation** (`pages/4_evaluation.py`)
+   - LLM-as-judge evaluation results
+   - Metrics: faithfulness, answer relevancy, context precision
+   - Per-query score breakdown
+
+6. **Engineering Decisions** (`pages/5_engineering_decisions.py`)
+   - Chunking strategy rationale
+   - Section reconstruction approach
+   - Trade-offs and design decisions
 
 ---
 
@@ -906,29 +924,43 @@ legal-rag/
 │   │   ├── __init__.py
 │   │   ├── loader.py             # HuggingFace dataset loading
 │   │   ├── chunkers.py           # Chunking strategy implementations
-│   │   └── pipeline.py           # Ingestion orchestration
+│   │   └── pipeline.py           # Ingestion with chunk linking
 │   │
 │   ├── retrieval.py              # Vector search with filters
+│   ├── reconstruction.py         # Section boundary detection and reconstruction
 │   ├── generation.py             # LLM answer generation
 │   │
 │   ├── evaluation/
 │   │   ├── __init__.py
-│   │   ├── metrics.py            # Recall, MRR calculations
-│   │   └── runner.py             # Evaluation orchestration
+│   │   ├── harness.py            # LLM-as-judge evaluation harness
+│   │   └── experiment_config.py  # Experimental variable definitions
 │   │
 │   └── api.py                    # FastAPI application
 │
 ├── dashboard/
 │   ├── app.py                    # Streamlit entry point
+│   ├── styles.py                 # Shared CSS styles
 │   ├── pages/
 │   │   ├── 0_chat.py             # Chat interface (primary UI)
 │   │   ├── 1_chunking_comparison.py
 │   │   ├── 2_retrieval_metrics.py
-│   │   └── 3_query_logs.py
+│   │   ├── 3_query_logs.py
+│   │   ├── 4_evaluation.py       # Evaluation results visualization
+│   │   └── 5_engineering_decisions.py  # Design documentation
 │   └── Dockerfile
+│
+├── evaluation/
+│   ├── test_queries.json         # 30 test queries for evaluation
+│   ├── experiment_config.py      # Experimental variables
+│   └── results/                  # Evaluation run outputs
 │
 ├── scripts/
 │   ├── ingest_corpus.py          # Full corpus ingestion CLI
+│   ├── run_evaluation.py         # Evaluation CLI
+│   ├── run_migration.py          # Database migration runner
+│   ├── validate_ingestion.py     # Data integrity validation
+│   ├── migrations/
+│   │   └── 001_add_chunk_links.sql
 │   └── snapshot_qdrant.py        # S3 snapshot export/import
 │
 ├── tests/

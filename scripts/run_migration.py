@@ -13,7 +13,7 @@ from src.database import get_postgres_engine, get_postgres_session
 def run_migration(migration_file: Path) -> None:
     """Run a SQL migration file."""
     settings = get_settings()
-    engine = get_postgres_engine(settings)
+    engine = get_postgres_engine(settings=settings)
 
     print(f"Running migration: {migration_file.name}")
 
