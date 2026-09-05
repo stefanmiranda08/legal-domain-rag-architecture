@@ -120,22 +120,49 @@ Users submit natural language questions about Australian law. The system retriev
 - `document_type`: Filter by legislation, decisions, or bills
 - `date_from` / `date_to`: Date range filter
 
-### 3.2 Chunking Strategy Comparison
+### 3.2 Chunking Strategy
 
-The system implements multiple chunking strategies and stores chunks from each in separate Qdrant collections. This enables side-by-side retrieval comparison.
+The system uses a linked-chunk architecture with on-demand section reconstruction. This approach addresses a fundamental problem in legal document retrieval: legal provisions are drafted as complete semantic units (sections), but standard chunking strategies either truncate these units or require brittle document parsing.
 
-**Strategies to Implement**:
+#### 3.2.1 The Problem
 
-| Strategy | Description |
-|----------|-------------|
-| Fixed-size | Split text every N tokens with M token overlap |
-| Paragraph-based | Split on paragraph boundaries, merge small paragraphs |
-| Recursive | LangChain RecursiveCharacterTextSplitter with legal-specific separators |
+Legal documents contain hierarchical semantic units (Parts → Divisions → Sections → Subsections). A section states a complete legal rule, often with qualifications and exceptions in its subsections. For example, Section 588G of the Corporations Act states a director's duty in subsection (1), but the defences appear in subsection (2).
 
-**Comparison Metrics**:
-- Recall@5, Recall@10 on evaluation query set
-- Mean Reciprocal Rank (MRR)
-- Average chunk size and count per document
+Standard chunking approaches fail in different ways:
+- **Fixed-size chunking**: Ignores document structure, may split mid-sentence or mid-section
+- **Recursive chunking**: Respects paragraph boundaries but truncates long sections at the token limit
+- **Rule-based parsing**: Requires document-specific parsing rules that fail on format variations
+
+When a chunk is truncated mid-section, the LLM receives incomplete context and compensates by extrapolating from its training data. This reduces faithfulness—the answer contains claims not grounded in the retrieved evidence.
+
+#### 3.2.2 The Solution: Linked Chunks with On-Demand Reconstruction
+
+Rather than attempting to parse document structure during ingestion (top-down), the system links chunks sequentially and reconstructs complete sections during retrieval (bottom-up).
+
+**Ingestion**:
+1. Chunk documents using recursive splitting (respects paragraph boundaries)
+2. Store bidirectional links between adjacent chunks (`prev_chunk_id`, `next_chunk_id`)
+3. No document structure parsing required
+
+**Retrieval**:
+1. Vector search returns initial chunks
+2. For each chunk, extend bidirectionally by fetching linked chunks
+3. After each extension, query an LLM: "Does this text begin and end at natural section boundaries?"
+4. Stop extending when the LLM confirms section completeness
+5. Deduplicate and pass complete sections to the generation LLM
+
+This approach:
+- Requires no document-specific parsing rules
+- Works across legislation, case law, and other document types
+- Only incurs LLM boundary-detection cost for retrieved chunks (not all 2M chunks)
+- Discovered boundaries can be cached for subsequent queries
+
+#### 3.2.3 Comparison Metrics
+
+- Faithfulness: Does the answer contain only claims supported by retrieved context?
+- Answer Relevancy: Does the answer address the question?
+- Context Precision: Are retrieved chunks relevant to the question?
+- Latency: End-to-end query time including reconstruction
 
 ### 3.3 Evaluation Framework
 
@@ -490,11 +517,22 @@ CREATE TABLE chunks (
     chunk_text TEXT NOT NULL,
     token_count INTEGER,
     qdrant_point_id UUID NOT NULL,
+
+    -- Linked chunk navigation (for section reconstruction)
+    prev_chunk_id UUID REFERENCES chunks(id),
+    next_chunk_id UUID REFERENCES chunks(id),
+
+    -- Cached section boundary detection (populated on first retrieval)
+    is_section_start BOOLEAN,
+    is_section_end BOOLEAN,
+
     created_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX idx_chunks_document ON chunks(document_id);
 CREATE INDEX idx_chunks_strategy ON chunks(chunking_strategy);
+CREATE INDEX idx_chunks_prev ON chunks(prev_chunk_id);
+CREATE INDEX idx_chunks_next ON chunks(next_chunk_id);
 
 -- Query logs for observability
 CREATE TABLE query_logs (
@@ -617,7 +655,8 @@ Metadata filtering uses Qdrant payload indexes on `jurisdiction`, `document_type
 2. Generate query embedding
 3. Build Qdrant filter from metadata parameters
 4. Execute vector search with filter
-5. Return ranked chunks with scores
+5. Reconstruct complete sections from linked chunks
+6. Return complete sections with scores
 
 **Filter Construction**:
 ```python
@@ -628,6 +667,82 @@ Metadata filtering uses Qdrant payload indexes on `jurisdiction`, `document_type
         {"key": "date", "range": {"gte": "2015-01-01", "lte": "2023-12-31"}}
     ]
 }
+```
+
+**Section Reconstruction**:
+
+After initial vector search, the retrieval module reconstructs complete sections:
+
+```python
+def retrieve_with_reconstruction(query, top_k, max_extension=5):
+    # 1. Initial vector search
+    initial_chunks = vector_search(query, top_k)
+
+    reconstructed = []
+    seen_ids = set()
+
+    for chunk in initial_chunks:
+        if chunk.id in seen_ids:
+            continue
+
+        # 2. Check cached boundaries
+        if chunk.is_section_start and chunk.is_section_end:
+            # Already a complete section
+            reconstructed.append(chunk.text)
+            seen_ids.add(chunk.id)
+            continue
+
+        # 3. Extend bidirectionally
+        section_chunks = [chunk]
+        seen_ids.add(chunk.id)
+
+        # Extend backward
+        current = chunk
+        for _ in range(max_extension):
+            if not current.prev_chunk_id:
+                break
+            prev = fetch_chunk(current.prev_chunk_id)
+            section_chunks.insert(0, prev)
+            seen_ids.add(prev.id)
+
+            combined = join_chunks(section_chunks)
+            if llm_check_boundary(combined, direction="start"):
+                break
+            current = prev
+
+        # Extend forward
+        current = chunk
+        for _ in range(max_extension):
+            if not current.next_chunk_id:
+                break
+            next = fetch_chunk(current.next_chunk_id)
+            section_chunks.append(next)
+            seen_ids.add(next.id)
+
+            combined = join_chunks(section_chunks)
+            if llm_check_boundary(combined, direction="end"):
+                break
+            current = next
+
+        # 4. Cache boundaries for future queries
+        cache_section_boundaries(section_chunks)
+
+        reconstructed.append(join_chunks(section_chunks))
+
+    return reconstructed
+```
+
+**Boundary Detection Prompt**:
+```
+Examine this legal text and determine if it begins/ends at a natural section boundary.
+
+A section boundary is where one complete legal provision ends and another begins.
+Look for: section numbers, headings, topic shifts, or document start/end.
+
+Text:
+{text}
+
+Does this text {start at / end at} a natural section boundary? Answer YES or NO.
 ```
 
 ### 7.3 Generation Module

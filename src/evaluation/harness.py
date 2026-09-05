@@ -140,7 +140,7 @@ def run_rag_pipeline(
         {
             "citation": c.citation,
             "document_id": c.document_id,
-            "score": c.score,
+            "score": c.relevance_score,
         }
         for c in answer.citations
     ]
@@ -222,7 +222,7 @@ Respond with ONLY a JSON object in this exact format:
 def evaluate_with_llm(
     prompt: str,
     api_key: str,
-    model: str = "gpt-4o-mini",
+    model: str = "gpt-5.4",
 ) -> dict:
     """
     Use LLM to evaluate a metric and return score + reason.
@@ -234,7 +234,7 @@ def evaluate_with_llm(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
-            max_tokens=200,
+            max_completion_tokens=200,
         )
 
         content = response.choices[0].message.content.strip()
@@ -401,7 +401,7 @@ def run_evaluation(
         answers=all_answers,
         contexts=all_contexts,
         api_key=settings.openai_api_key,
-        judge_model="gpt-4o-mini",  # Use smaller model for judging
+        judge_model="gpt-5.4",  # Use gpt-5.4 as judge
     )
 
     # Add latency metrics

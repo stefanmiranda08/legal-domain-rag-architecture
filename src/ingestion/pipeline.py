@@ -311,10 +311,12 @@ class IngestionPipeline:
         chunks: list[Chunk],
         embeddings: list[list[float]],
     ) -> None:
-        """Store chunks in Qdrant and PostgreSQL."""
+        """Store chunks in Qdrant and PostgreSQL with bidirectional links."""
         collection_name = get_collection_name(strategy)
         points = []
+        chunk_records = []
 
+        # First pass: create all chunk records
         for chunk, embedding in zip(chunks, embeddings):
             point_id = uuid4()
 
@@ -344,6 +346,17 @@ class IngestionPipeline:
                 qdrant_point_id=point_id,
             )
             session.add(chunk_record)
+            chunk_records.append(chunk_record)
+
+        # Flush to get IDs assigned
+        session.flush()
+
+        # Second pass: link chunks bidirectionally
+        for i, chunk_record in enumerate(chunk_records):
+            if i > 0:
+                chunk_record.prev_chunk_id = chunk_records[i - 1].id
+            if i < len(chunk_records) - 1:
+                chunk_record.next_chunk_id = chunk_records[i + 1].id
 
         # Batch upsert to Qdrant (limit batch size to avoid 32MB payload limit)
         if points:

@@ -208,7 +208,7 @@ class Document(Base):
 
 
 class Chunk(Base):
-    """Document chunk with embedding reference."""
+    """Document chunk with embedding reference and navigation links."""
 
     __tablename__ = "chunks"
 
@@ -219,9 +219,20 @@ class Chunk(Base):
     chunk_text = Column(Text, nullable=False)
     token_count = Column(Integer, nullable=True)
     qdrant_point_id = Column(PGUUID(as_uuid=True), nullable=False)
+
+    # Linked chunk navigation (for section reconstruction)
+    prev_chunk_id = Column(PGUUID(as_uuid=True), ForeignKey("chunks.id"), nullable=True)
+    next_chunk_id = Column(PGUUID(as_uuid=True), ForeignKey("chunks.id"), nullable=True)
+
+    # Cached section boundary detection (populated on first retrieval)
+    is_section_start = Column(Integer, nullable=True)  # 1=yes, 0=no, null=unknown
+    is_section_end = Column(Integer, nullable=True)  # 1=yes, 0=no, null=unknown
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     document = relationship("Document", back_populates="chunks")
+    prev_chunk = relationship("Chunk", foreign_keys=[prev_chunk_id], remote_side="Chunk.id", uselist=False)
+    next_chunk = relationship("Chunk", foreign_keys=[next_chunk_id], remote_side="Chunk.id", uselist=False)
 
 
 class QueryLog(Base):

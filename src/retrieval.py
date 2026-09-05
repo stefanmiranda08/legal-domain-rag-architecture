@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import date
+from uuid import UUID
 
 from openai import OpenAI
 from qdrant_client import QdrantClient
@@ -11,6 +12,7 @@ from sqlalchemy.engine import Engine
 from src.config import Settings, get_settings
 from src.database import get_collection_name, get_postgres_session
 from src.models import Chunk, ChunkingStrategy, QueryFilters
+from src.reconstruction import ReconstructedSection, reconstruct_sections_for_retrieval
 
 
 @dataclass
@@ -216,3 +218,103 @@ def search_chunks(
         )
 
     return chunks
+
+
+def search_with_reconstruction(
+    query: str,
+    qdrant_client: QdrantClient,
+    strategy: ChunkingStrategy,
+    openai_api_key: str,
+    postgres_engine: Engine,
+    filters: QueryFilters | None = None,
+    top_k: int = 10,
+    max_extension: int = 5,
+    settings: Settings | None = None,
+) -> list[ReconstructedSection]:
+    """
+    Search for relevant chunks and reconstruct complete sections.
+
+    This function performs vector search, then extends each retrieved chunk
+    bidirectionally to reconstruct complete semantic units (sections).
+    LLM-based boundary detection determines when to stop extending.
+
+    Args:
+        query: Natural language query.
+        qdrant_client: Qdrant client instance.
+        strategy: Chunking strategy to search.
+        openai_api_key: OpenAI API key.
+        postgres_engine: PostgreSQL engine for chunk retrieval.
+        filters: Optional metadata filters.
+        top_k: Number of initial chunks to retrieve.
+        max_extension: Maximum chunks to extend in each direction.
+        settings: Optional settings override.
+
+    Returns:
+        List of reconstructed sections with complete semantic units.
+    """
+    if not query or not query.strip():
+        return []
+
+    settings = settings or get_settings()
+    collection_name = get_collection_name(strategy)
+
+    # Generate query embedding
+    query_embedding = generate_query_embedding(
+        query=query,
+        api_key=openai_api_key,
+        model=settings.embedding_model,
+        dimensions=settings.embedding_dimensions,
+    )
+
+    # Build filter if provided
+    qdrant_filter = None
+    if filters is not None:
+        qdrant_filter = build_qdrant_filter(filters)
+
+    # Search Qdrant
+    result = qdrant_client.query_points(
+        collection_name=collection_name,
+        query=query_embedding,
+        query_filter=qdrant_filter,
+        limit=top_k,
+        with_payload=True,
+    )
+
+    if not result.points:
+        return []
+
+    # Get full chunk records from PostgreSQL
+    point_ids = [str(point.id) for point in result.points]
+    scores = [point.score for point in result.points]
+
+    with get_postgres_session(postgres_engine) as session:
+        # Query chunks by qdrant_point_id
+        chunks = (
+            session.query(Chunk)
+            .filter(Chunk.qdrant_point_id.cast(String).in_(point_ids))
+            .all()
+        )
+
+        # Map point_id to chunk for ordering
+        chunk_map = {str(c.qdrant_point_id): c for c in chunks}
+        ordered_chunks = [chunk_map.get(pid) for pid in point_ids if pid in chunk_map]
+        ordered_scores = [scores[i] for i, pid in enumerate(point_ids) if pid in chunk_map]
+
+        if not ordered_chunks:
+            return []
+
+        # Reconstruct sections
+        sections = reconstruct_sections_for_retrieval(
+            session=session,
+            chunks=ordered_chunks,
+            scores=ordered_scores,
+            api_key=openai_api_key,
+            max_extension=max_extension,
+            boundary_model="gpt-4o-mini",
+        )
+
+        return sections
+
+
+# Import String for the cast operation
+from sqlalchemy import String

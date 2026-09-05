@@ -14,64 +14,70 @@ A legal domain RAG (Retrieval-Augmented Generation) system for querying Australi
 
 ### Completed: Data Ingestion
 
-Ingestion completed successfully:
+Previous ingestion completed:
 - **99,220 Commonwealth documents** ingested
 - **1,981,579 chunks** in PostgreSQL
-- **1,981,579 vectors** in Qdrant (validated, no orphans)
+- **1,981,579 vectors** in Qdrant (recursive strategy only)
 
-### In Progress: Evaluation Harness
+**Note**: Existing data does not have chunk links. Re-ingestion required to use section reconstruction.
 
-Building an evaluation harness to compare experimental variables. The harness is 90% complete but has a minor bug to fix.
+### Completed: Evaluation Harness
 
-**Bug to fix**: In `src/evaluation/harness.py`, line ~117, the `QueryResult` dataclass references `c.score` but `Citation` objects use `relevance_score`. Change:
-```python
-# From:
-"score": c.score,
-# To:
-"score": c.relevance_score,
+Evaluation harness working with fixes:
+- `c.score` → `c.relevance_score`
+- `gpt-4o-mini` → `gpt-5.4` (API access)
+- `max_tokens` → `max_completion_tokens`
+
+**Recursive Chunking Evaluation Results** (without reconstruction):
+| Metric | Score |
+|--------|-------|
+| Faithfulness | 0.567 |
+| Answer Relevancy | 0.950 |
+| Context Precision | 0.936 |
+
+### Completed: Linked Chunk Architecture
+
+Implemented bottom-up section reconstruction:
+
+**Files changed:**
+- `src/models.py` - Added `prev_chunk_id`, `next_chunk_id`, `is_section_start`, `is_section_end` to Chunk model
+- `src/ingestion/pipeline.py` - Links chunks bidirectionally during ingestion
+- `src/reconstruction.py` - New module for LLM-based section boundary detection
+- `src/retrieval.py` - Added `search_with_reconstruction()` function
+- `scripts/migrations/001_add_chunk_links.sql` - Database migration
+- `scripts/run_migration.py` - Migration runner
+- `SPECIFICATION.md` - Updated with new chunking approach
+- `dashboard/pages/5_engineering_decisions.py` - Updated documentation
+
+---
+
+## Before Re-Ingestion
+
+Run the database migration to add new columns:
+
+```bash
+uv run python scripts/run_migration.py 001_add_chunk_links.sql
 ```
 
-**After fixing, run evaluation**:
+Then clear existing data and re-ingest:
+
 ```bash
-# Run chunking strategy comparison
-python scripts/run_evaluation.py --name "chunking_recursive" --chunking-strategy recursive --top-k 10 --llm-model gpt-5.4 --system-prompt professional
-
-python scripts/run_evaluation.py --name "chunking_fixed" --chunking-strategy fixed --top-k 10 --llm-model gpt-5.4 --system-prompt professional
-
-python scripts/run_evaluation.py --name "chunking_paragraph" --chunking-strategy paragraph --top-k 10 --llm-model gpt-5.4 --system-prompt professional
+# Clear existing chunks (optional - or create new collections)
+# Re-run ingestion
+uv run python scripts/ingest_corpus.py --strategies recursive --jurisdiction commonwealth
 ```
 
 ---
 
-## What's Been Completed This Session
+## How Section Reconstruction Works
 
-### 1. Fixed Ingestion Pipeline Batching
-- OpenAI embedding: batch by token count (250k max) instead of item count
-- Qdrant upserts: batch to 500 points to avoid 32MB payload limit
-- Added logging throughout pipeline
+1. **Ingestion**: Chunks are linked sequentially (`prev_chunk_id`, `next_chunk_id`)
+2. **Retrieval**: Vector search returns initial chunks
+3. **Extension**: For each chunk, fetch prev/next and combine
+4. **Boundary Detection**: LLM determines if combined text is a complete section
+5. **Caching**: Boundary decisions cached in `is_section_start`/`is_section_end`
 
-### 2. Created Validation Script
-- `scripts/validate_ingestion.py` - detects orphaned vectors and duplicate chunks
-- Found and cleaned up 6,582 orphaned Qdrant vectors
-
-### 3. Improved Generation Prompt
-- Added "professional" system prompt variant with structured response guidelines
-- Multiple prompt variants supported via `prompt_variant` parameter
-
-### 4. Built Evaluation Framework
-- `evaluation/test_queries.json` - 30 test queries across 6 legal categories
-- `evaluation/experiment_config.py` - experimental variable definitions
-- `src/evaluation/harness.py` - LLM-as-judge evaluation (faithfulness, relevancy, context precision)
-- `scripts/run_evaluation.py` - CLI for running experiments
-- `dashboard/pages/4_evaluation.py` - Streamlit results visualization
-
-### 5. Reduced Dashboard Text Size
-- `dashboard/styles.py` - shared CSS applied across all pages
-
-### 6. Engineering Problems Log
-- `engineering_problems.md` - documents challenges for interview discussion
-  - API payload limit batching
-  - Orphaned vectors from transactional mismatch
+This avoids brittle document parsing while reconstructing complete semantic units.
 
 ---
 
@@ -80,9 +86,12 @@ python scripts/run_evaluation.py --name "chunking_paragraph" --chunking-strategy
 ### Prerequisites
 ```bash
 # Ensure Docker containers are running
-docker ps  # Should see legal-rag-postgres and qdrant
+docker ps  # Should see postgres and qdrant
 
-# Set environment variables (or use .env file)
+# Verify Qdrant
+curl http://localhost:6333/healthz
+
+# Set environment variables
 export OPENAI_API_KEY="sk-..."
 ```
 
@@ -98,47 +107,21 @@ uv run streamlit run dashboard/app.py
 ### Access Points
 - API: http://localhost:8000
 - Dashboard: http://localhost:8501
-- Chat Interface: http://localhost:8501 (page 0)
-- Evaluation Results: http://localhost:8501 (page 4)
+- Engineering Decisions: http://localhost:8501 (page 5)
 
 ---
 
-## Key Files Changed This Session
+## Key Files
 
 | File | Purpose |
 |------|---------|
-| `src/ingestion/pipeline.py` | Token-based batching, Qdrant batch upserts, logging |
-| `src/ingestion/loader.py` | Corpus loading logging |
-| `src/generation.py` | Multiple system prompt variants |
-| `src/evaluation/harness.py` | LLM-as-judge evaluation harness |
-| `scripts/validate_ingestion.py` | Data integrity validation |
-| `scripts/run_evaluation.py` | Evaluation CLI |
-| `evaluation/test_queries.json` | 30 test queries |
-| `evaluation/experiment_config.py` | Experimental variables |
-| `dashboard/pages/4_evaluation.py` | Evaluation results dashboard |
-| `dashboard/styles.py` | Shared CSS styles |
-| `engineering_problems.md` | Interview prep documentation |
-
----
-
-## Experimental Variables for Evaluation
-
-| Variable | Options |
-|----------|---------|
-| `chunking_strategy` | fixed, paragraph, recursive |
-| `top_k` | 5, 10, 15, 20 |
-| `llm_model` | gpt-4o-mini, gpt-4o, gpt-5.4 |
-| `system_prompt` | default, professional |
-
----
-
-## Next Steps
-
-1. **Fix evaluation harness bug** (see above)
-2. **Run chunking strategy comparison** with fixed variables
-3. **View results** in Streamlit dashboard (page 4)
-4. **Run additional experiments** varying other parameters
-5. **Commit and push** evaluation results
+| `src/models.py` | Chunk model with navigation links |
+| `src/ingestion/pipeline.py` | Ingestion with chunk linking |
+| `src/reconstruction.py` | Section boundary detection |
+| `src/retrieval.py` | Retrieval with reconstruction |
+| `src/evaluation/harness.py` | LLM-as-judge evaluation |
+| `dashboard/pages/5_engineering_decisions.py` | Design documentation |
+| `SPECIFICATION.md` | Full system specification |
 
 ---
 
@@ -149,4 +132,4 @@ uv run streamlit run dashboard/app.py
 - Commonwealth subset only (~$15 budget for embeddings)
 - Deploy only when demoing (to minimize AWS costs)
 - Prefer lightweight frameworks over heavyweight ones
-- Use `.env` file for configuration (already created)
+- Use `.env` file for configuration
